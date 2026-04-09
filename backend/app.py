@@ -111,5 +111,7 @@ if __name__ == "__main__":
     import os
 
     port = int(os.environ.get("PORT", 8000))
+    # On Render, the host must be 0.0.0.0. For local development, 127.0.0.1 is standard.
+    host = "0.0.0.0" if os.environ.get("PORT") else "127.0.0.1"
 
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host=host, port=port)
