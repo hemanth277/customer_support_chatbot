@@ -60,16 +60,24 @@ async def chat_endpoint(payload: MessagePayload):
 
     bot_response = ""
     
-    # De-escalation prefix if user is frustrated
-    empathy_prefix = ""
+    # De-escalation or Appreciation prefix based on sentiment
+    tone_prefix = ""
     if sentiment_label == "negative":
         empathy_prefixes = [
-            "I'm very sorry to hear that you're having this experience.",
-            "I truly understand your frustration and I'm here to help.",
-            "I apologize for the trouble. Let's work on getting this resolved for you.",
-            "Thank you for sharing your feedback. I'm sorry to see you're unhappy, but I will do my best to assist you."
+            "I'm really sorry for your experience. Let me help you resolve this issue.",
+            "I truly understand your frustration and I'm here to solve this for you.",
+            "I apologize sincerely for the trouble. Let's work on a solution right away.",
+            "I'm sorry to hear you're unhappy with our service. Let me make this right."
         ]
-        empathy_prefix = random.choice(empathy_prefixes) + " "
+        tone_prefix = random.choice(empathy_prefixes) + " "
+    elif sentiment_label == "positive":
+        appreciation_prefixes = [
+            "Thank you! We're happy to hear that.",
+            "That's great to hear! We appreciate your kind words.",
+            "We're glad you're happy with our service! How can I assist you further?",
+            "Thank you for the positive feedback! It's our pleasure to help."
+        ]
+        tone_prefix = random.choice(appreciation_prefixes) + " "
 
     order_match = re.search(r'(ORD\d{4,})', user_msg, re.IGNORECASE)
 
@@ -84,37 +92,39 @@ async def chat_endpoint(payload: MessagePayload):
             
             bot_response = f"I found your order {order_id} for '{product}'. The current status is **{status}**."
             
+            if status.lower() == "delivered":
+                bot_response += " I hope you're enjoying your purchase!"
+            
             # Check if there was an issue logged for this order
             issue = order.get("issue_type")
             if issue:
-                bot_response += f" I also noticed there is an open '{issue}' ticket for this order. I can connect you to an agent if you need further help with that."
+                bot_response += f" I also noticed there is a recorded issue regarding '{issue}'. I can guide you through the next steps or connect you to an agent."
         else:
-            bot_response = f"I couldn't find order number {order_id} in our records. Please double check the ID and try again!"
+            bot_response = f"I couldn't find order number {order_id} in our records. Please double-check the ID and I'll check again for you!"
             
     elif not user_msg:
-        bot_response = "I didn't quite catch that. How can I help you?"
+        bot_response = "I didn't quite catch that. How can I help you today?"
     elif "hello" in user_msg or "hi" in user_msg:
-        return {"response": "Hello! Welcome to ShopEasy Customer Support. Are you inquiring about a recent order?"}
+        bot_response = "Hello! Welcome to ShopEasy Customer Support. Are you inquiring about a recent order?"
     elif "order" in user_msg or "track" in user_msg or "delivery" in user_msg:
-        # Don't return here, assign so it gets properly logged
-        bot_response = "I can help with that. Could you please provide your order ID? It should look like ORD5051."
+        bot_response = "Sure! Please provide your order ID (like ORD5051) and I'll check the status for you."
     elif "return" in user_msg or "refund" in user_msg or "cancel" in user_msg:
-        bot_response = "We offer a 30-day return policy. If you would like to initiate a return or refund for a recent purchase, please give me the Tracking/Order ID."
+        bot_response = "I can certainly help with that. Please provide your order ID so I can guide you through the process."
     elif "payment" in user_msg or "card" in user_msg or "failed" in user_msg:
-        bot_response = "If your payment failed during checkout, no amount was deducted. Please try placing the order again or use a different payment method."
+        bot_response = "If your payment failed, don't worry—no amount was deducted. Please try again or use a different payment method. I'm here if you need more help!"
     elif "human" in user_msg or "agent" in user_msg:
-        bot_response = "I'll transfer you to a live ShopEasy representative from our customer care team right away."
+        bot_response = "I'll transfer you to a live ShopEasy representative from our customer care team right away to help you further."
     else:
         fallback_responses = [
-            "I'm sorry, I didn't quite catch that. Does this pertain to an order you have already placed?",
-            "I understand. Let me check our store policies regarding that.",
-            "That's a good question. Can you share a bit more context about your issue?",
-            "Can you clarify that so I can find the best solution for your shopping experience?",
+            "Could you please share a bit more context about your issue so I can find the best solution?",
+            "I'm here to help. Does this pertain to an order you have already placed?",
+            "Let me check our policies regarding that. Could you provide some more details?",
+            "I want to make sure I understand correctly. How can I best assist you today?",
         ]
         bot_response = random.choice(fallback_responses)
         
-    # Apply empathy prefix if needed
-    full_response = empathy_prefix + bot_response
+    # Apply tone prefix if needed
+    full_response = tone_prefix + bot_response
 
     # Save bot message
     await db.messages.insert_one({
