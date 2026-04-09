@@ -9,6 +9,17 @@ import os
 import datetime
 import re
 from textblob import TextBlob
+import nltk
+
+# Ensure NLTK data is available
+try:
+    nltk.data.find('corpora/punkt')
+except LookupError:
+    nltk.download('punkt')
+try:
+    nltk.data.find('corpora/punkt_tab')
+except LookupError:
+    nltk.download('punkt_tab')
 
 app = FastAPI()
 
@@ -23,13 +34,17 @@ async def chat_endpoint(payload: MessagePayload):
     user_msg = payload.message.lower()
     
     # Analyze Sentiment
-    analysis = TextBlob(payload.message)
-    sentiment_score = analysis.sentiment.polarity
     sentiment_label = "neutral"
-    if sentiment_score < -0.3:
-        sentiment_label = "negative"
-    elif sentiment_score > 0.3:
-        sentiment_label = "positive"
+    sentiment_score = 0.0
+    try:
+        analysis = TextBlob(payload.message)
+        sentiment_score = analysis.sentiment.polarity
+        if sentiment_score < -0.3:
+            sentiment_label = "negative"
+        elif sentiment_score > 0.3:
+            sentiment_label = "positive"
+    except Exception as e:
+        print(f"Sentiment Analysis Error: {e}")
 
     # Save user message with sentiment
     await db.messages.insert_one({
