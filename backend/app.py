@@ -8,6 +8,7 @@ import asyncio
 import os
 import datetime
 import re
+from textblob import TextBlob
 
 app = FastAPI()
 
@@ -21,10 +22,21 @@ class MessagePayload(BaseModel):
 async def chat_endpoint(payload: MessagePayload):
     user_msg = payload.message.lower()
     
-    # Save user message
+    # Analyze Sentiment
+    analysis = TextBlob(payload.message)
+    sentiment_score = analysis.sentiment.polarity
+    sentiment_label = "neutral"
+    if sentiment_score < -0.3:
+        sentiment_label = "negative"
+    elif sentiment_score > 0.3:
+        sentiment_label = "positive"
+
+    # Save user message with sentiment
     await db.messages.insert_one({
         "sender": "user",
         "text": payload.message,
+        "sentiment": sentiment_label,
+        "sentiment_score": sentiment_score,
         "timestamp": datetime.datetime.utcnow()
     })
 
@@ -32,6 +44,18 @@ async def chat_endpoint(payload: MessagePayload):
     await asyncio.sleep(0.5)
 
     bot_response = ""
+    
+    # De-escalation prefix if user is frustrated
+    empathy_prefix = ""
+    if sentiment_label == "negative":
+        empathy_prefixes = [
+            "I'm very sorry to hear that you're having this experience.",
+            "I truly understand your frustration and I'm here to help.",
+            "I apologize for the trouble. Let's work on getting this resolved for you.",
+            "Thank you for sharing your feedback. I'm sorry to see you're unhappy, but I will do my best to assist you."
+        ]
+        empathy_prefix = random.choice(empathy_prefixes) + " "
+
     order_match = re.search(r'(ORD\d{4,})', user_msg, re.IGNORECASE)
 
     if order_match:
@@ -74,14 +98,17 @@ async def chat_endpoint(payload: MessagePayload):
         ]
         bot_response = random.choice(fallback_responses)
         
+    # Apply empathy prefix if needed
+    full_response = empathy_prefix + bot_response
+
     # Save bot message
     await db.messages.insert_one({
         "sender": "bot",
-        "text": bot_response,
+        "text": full_response,
         "timestamp": datetime.datetime.utcnow()
     })
 
-    return {"response": bot_response}
+    return {"response": full_response}
 
 @app.get("/api/history")
 async def get_history():
